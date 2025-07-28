@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  unbound:
+    image: mvance/unbound:latest
+    container_name: unbound
+    restart: unless-stopped
+    networks:
+      - backend
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    environment:
+      TZ: "America/Los_Angeles"
+      DNS1: 127.0.0.1#5335   # Use unbound as upstream
+      DNS2: 127.0.0.1#5335
+      VIRTUAL_HOST: pihole.kernastra.com  # Replace with your domain
+    volumes:
+      - ./pihole/etc-pihole:/etc/pihole
+      - ./pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.rule=Host(`pihole.kernastra.com`)"  # Replace with your domain
+      - "traefik.http.routers.pihole.entrypoints=websecure"
+      - "traefik.http.routers.pihole.tls.certresolver=le"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+      # Redirect HTTP to HTTPS
+      - "traefik.http.routers.pihole-http.rule=Host(`pihole.kernastra.com`)"  # Replace with your domain
+      - "traefik.http.routers.pihole-http.entrypoints=web"
+      - "traefik.http.routers.pihole-http.middlewares=pihole-redirect"
+      - "traefik.http.middlewares.pihole-redirect.redirectscheme.scheme=https"
+    depends_on:
+      - unbound
+    networks:
+      - backend
+      - frontend
+
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=kernastra1@gmail.com"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/letsencrypt:/letsencrypt
+    networks:
+      - frontend
+      - backend
+
+networks:
+  frontend:
+  backend:
