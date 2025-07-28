@@ -28,13 +28,26 @@ A secure DNS proxy setup using Pi-hole, Unbound, and Traefik with automatic SSL 
 
 ```bash
 git clone <your-repo>
-cd dnsproxyssl
+cd oriongate
 ```
+
+**Before deploying, update the following in `docker-compose.yml`:**
+
+1. **Domain name** (3 locations):
+   - Line 21: `VIRTUAL_HOST: pihole.yourdomain.com`
+   - Line 35: `traefik.http.routers.pihole.rule=Host(\`pihole.yourdomain.com\`)`
+   - Line 40: `traefik.http.routers.pihole-http.rule=Host(\`pihole.yourdomain.com\`)`
+
+2. **Email address** (1 location):
+   - Line 60: `--certificatesresolvers.le.acme.email=your-email@example.com`
+
+3. **Timezone** (optional):
+   - Line 19: `TZ: "America/Los_Angeles"`
 
 ### 2. DNS Configuration (Cloudflare)
 
 1. Log into Cloudflare
-2. Go to DNS settings for `kernastra.com`
+2. Go to DNS settings for `yourdomain.com`
 3. Add an A record:
    - **Type**: A
    - **Name**: `pihole`
@@ -56,8 +69,8 @@ docker-compose logs traefik
 
 ### 4. Verify Deployment
 
-1. **DNS Resolution**: `nslookup pihole.kernastra.com`
-2. **SSL Certificate**: Visit `https://pihole.kernastra.com/admin`
+1. **DNS Resolution**: `nslookup pihole.yourdomain.com`
+2. **SSL Certificate**: Visit `https://pihole.yourdomain.com/admin`
 3. **DNS Service**: Configure a device to use your server's IP as DNS
 
 ## 🔧 Configuration
@@ -67,8 +80,8 @@ docker-compose logs traefik
 The setup uses these key configurations:
 
 - **Timezone**: `America/Los_Angeles`
-- **Domain**: `pihole.kernastra.com`
-- **Email**: `kernastra1@gmail.com` (for Let's Encrypt notifications)
+- **Domain**: `pihole.yourdomain.com`
+- **Email**: `your-email@example.com` (for Let's Encrypt notifications)
 
 ### Volume Mounts
 
@@ -80,7 +93,7 @@ The setup uses these key configurations:
 
 ## 🌐 Access Points
 
-- **Pi-hole Admin**: `https://pihole.kernastra.com/admin`
+- **Pi-hole Admin**: `https://pihole.yourdomain.com/admin`
 - **DNS Service**: Point devices to your server's IP address
 - **Traefik Dashboard**: `http://your-server-ip:8080` (if exposed)
 
@@ -93,10 +106,10 @@ The setup uses these key configurations:
 docker-compose logs traefik
 
 # Verify domain resolution
-nslookup pihole.kernastra.com
+nslookup pihole.yourdomain.com
 
 # Check if ports are accessible
-curl -I http://pihole.kernastra.com
+curl -I http://pihole.yourdomain.com
 ```
 
 ### DNS Resolution Issues
@@ -142,7 +155,7 @@ docker-compose up -d
 ## 📁 Directory Structure
 
 ```
-dnsproxyssl/
+oriongate/
 ├── docker-compose.yml
 ├── README.md
 ├── pihole/
@@ -163,11 +176,12 @@ dnsproxyssl/
 
 ### Changing the Domain
 
-1. Update `docker-compose.yml`:
-   - Replace `pihole.kernastra.com` with your domain (3 locations)
-   - Update `VIRTUAL_HOST` environment variable
+1. Update the following 4 locations in `docker-compose.yml`:
+   - Pi-hole VIRTUAL_HOST environment variable
+   - Two Traefik router rules (HTTPS and HTTP redirect)
+   - Traefik ACME email address
 
-2. Update DNS records in Cloudflare
+2. Update DNS records in your DNS provider (e.g., Cloudflare)
 
 3. Restart services: `docker-compose up -d`
 

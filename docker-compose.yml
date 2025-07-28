@@ -1,6 +1,18 @@
+# DNS Proxy with SSL - Docker Compose Configuration
+# 
+# IMPORTANT: Before deploying, you MUST update the following placeholders:
+# 1. Replace "yourdomain.com" with your actual domain name (3 locations)
+# 2. Replace "your-email@example.com" with your email for Let's Encrypt notifications
+# 3. Optionally change the timezone from "America/Los_Angeles" to your timezone
+#
+# Required DNS setup:
+# - Create an A record: pihole.yourdomain.com -> your server's public IP
+# - Ensure Cloudflare proxy is OFF (DNS only - gray cloud)
+
 version: "3.8"
 
 services:
+  # Unbound - Recursive DNS resolver for enhanced privacy
   unbound:
     image: mvance/unbound:latest
     container_name: unbound
@@ -8,28 +20,36 @@ services:
     networks:
       - backend
 
+  # Pi-hole - Network-wide ad blocking and DNS filtering
   pihole:
     image: pihole/pihole:latest
     container_name: pihole
     environment:
+      # CHANGE THIS: Set your timezone (e.g., "America/New_York", "Europe/London")
       TZ: "America/Los_Angeles"
-      DNS1: 127.0.0.1#5335   # Use unbound as upstream
+      # DNS upstream servers (uses Unbound for recursive resolution)
+      DNS1: 127.0.0.1#5335
       DNS2: 127.0.0.1#5335
-      VIRTUAL_HOST: pihole.kernastra.com  # Replace with your domain
+      # CHANGE THIS: Replace with your domain (must match Traefik labels below)
+      VIRTUAL_HOST: pihole.yourdomain.com
     volumes:
       - ./pihole/etc-pihole:/etc/pihole
       - ./pihole/etc-dnsmasq.d:/etc/dnsmasq.d
     ports:
+      # DNS ports - these will be exposed on your server
       - "53:53/tcp"
       - "53:53/udp"
     labels:
+      # Traefik configuration for HTTPS access
       - "traefik.enable=true"
-      - "traefik.http.routers.pihole.rule=Host(`pihole.kernastra.com`)"  # Replace with your domain
+      # CHANGE THIS: Replace yourdomain.com with your actual domain
+      - "traefik.http.routers.pihole.rule=Host(`pihole.yourdomain.com`)"
       - "traefik.http.routers.pihole.entrypoints=websecure"
       - "traefik.http.routers.pihole.tls.certresolver=le"
       - "traefik.http.services.pihole.loadbalancer.server.port=80"
-      # Redirect HTTP to HTTPS
-      - "traefik.http.routers.pihole-http.rule=Host(`pihole.kernastra.com`)"  # Replace with your domain
+      # HTTP to HTTPS redirect
+      # CHANGE THIS: Replace yourdomain.com with your actual domain
+      - "traefik.http.routers.pihole-http.rule=Host(`pihole.yourdomain.com`)"
       - "traefik.http.routers.pihole-http.entrypoints=web"
       - "traefik.http.routers.pihole-http.middlewares=pihole-redirect"
       - "traefik.http.middlewares.pihole-redirect.redirectscheme.scheme=https"
@@ -39,6 +59,7 @@ services:
       - backend
       - frontend
 
+  # Traefik - Reverse proxy with automatic Let's Encrypt SSL certificates
   traefik:
     image: traefik:latest
     container_name: traefik
@@ -50,18 +71,23 @@ services:
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=kernastra1@gmail.com"
+      # CHANGE THIS: Replace with your email for Let's Encrypt notifications
+      - "--certificatesresolvers.le.acme.email=your-email@example.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
     ports:
+      # HTTP and HTTPS ports
       - "80:80"
       - "443:443"
     volumes:
+      # Docker socket for container discovery
       - /var/run/docker.sock:/var/run/docker.sock
+      # SSL certificate storage
       - ./traefik/letsencrypt:/letsencrypt
     networks:
       - frontend
       - backend
 
+# Network configuration
 networks:
-  frontend:
-  backend:
+  frontend:  # For external access through Traefik
+  backend:   # For internal communication between services
